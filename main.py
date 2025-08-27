@@ -1,27 +1,182 @@
-from livereload import Server
-from flask import Flask, Response, make_response, render_template, url_for, request, jsonify, redirect
-
+from flask import Flask, render_template, request
 import pandas as pd
 import numpy as np
+import plotly.express as px
+import plotly.io as pio
+import os
+from datetime import datetime
 
-import os 
-import re
-import base64
+app = Flask(__name__, template_folder="templates", static_folder="static", static_url_path="/")
 
-template_folder = "templates/"
-static_folder = "static/"
-csv_file = "csv/laptop_kaggle.csv"
+csv_path = "csv/"
+csv_files = [f for f in os.listdir(csv_path) if f.endswith(".csv")]
+df_list = [pd.read_csv(os.path.join(csv_path, f)) for f in csv_files]
+df = pd.concat(df_list, ignore_index=True)
 
-app = Flask(__name__, template_folder=template_folder, static_folder=static_folder, static_url_path="/")
+cooked_df = None
 
-@app.route('/')
-def home():
-    return render_template('index.html')
+plot_config = {
+    "quantity_ordered": "bar",
+    "total_sales": "bar",
+    "average_price": "line",
+    "average_order_value": "scatter",
+    "total_order_value": "line"
+}
+
+group_options = ["Product", "Date", "Time", "Month", "Week", "Day", "Hour", "City"]
+metric_options = list(plot_config.keys())
+ROWS_PER_PAGE = 25
+
+def preprocess_data(df):
+    df["Quantity Ordered"] = pd.to_numeric(df["Quantity Ordered"], errors="coerce")
+    df["Price Each"] = pd.to_numeric(df["Price Each"], errors="coerce")
+    df["Sales"] = df["Price Each"] * df["Quantity Ordered"]
+    df["Order Value"] = df["Sales"] / df["Quantity Ordered"]
+    df["Order Date"] = pd.to_datetime(df["Order Date"], format="%m/%d/%y %H:%M", errors="coerce")
+    df["Date"] = df["Order Date"].dt.date
+    df["Time"] = df["Order Date"].dt.time
+    df["Month"] = df["Order Date"].dt.month
+    df["Week"] = df["Order Date"].dt.isocalendar().week
+    df["Day"] = df["Order Date"].dt.day
+    df["Hour"] = df["Order Date"].dt.hour
+    df["City"] = df["Purchase Address"].str.split(",", expand=True)[1]
+    return df
 
 
+def generate_charts(df, group_by, label, plot_config=None):
+    charts = {}
+    group_key = f"grouped_by_{group_by.lower()}"
+    label_key = f"for_{label.lower().replace(' ', '_')}"
+    plot_types = plot_config if plot_config else plot_config
 
-if __name__ == '__main__':
-    server = Server(app.wsgi_app)
-    server.watch(template_folder)
-    server.watch(static_folder)
-    server.serve(debug=True, host='0.0.0.0', port=5000)
+    def get_plot_func(metric):
+        return {
+            "bar": px.bar,
+            "line": px.line,
+            "scatter": px.scatter
+        }.get(plot_types.get(metric, "bar"), px.bar)
+
+    # Quantity Ordered
+    quantity = df.groupby(group_by, as_index=False)["Quantity Ordered"].sum()
+    fig_quantity = get_plot_func("quantity_ordered")(
+        quantity,
+        x=group_by,
+        y="Quantity Ordered",
+        title=f"Quantity Ordered grouped_by_{group_by} for {label}"
+    )
+    charts[f"quantity_ordered_{group_key}_{label_key}"] = pio.to_html(fig_quantity, full_html=False)
+
+    # Total Sales
+    sales = df.groupby(group_by, as_index=False)["Sales"].sum()
+    fig_sales = get_plot_func("total_sales")(
+        sales,
+        x=group_by,
+        y="Sales",
+        title=f"Total Sales grouped_by_{group_by} for {label}"
+    )
+    charts[f"total_sales_{group_key}_{label_key}"] = pio.to_html(fig_sales, full_html=False)
+
+        # Average Price (only if grouped by Product)
+    if group_by == "Product":
+        price = df.groupby(group_by, as_index=False)["Price Each"].mean()
+        fig_price = get_plot_func("average_price")(
+            price,
+            x=group_by,
+            y="Price Each",
+            title=f"Average Price grouped_by_{group_by} for {label}"
+        )
+        charts[f"average_price_{group_key}_{label_key}"] = pio.to_html(fig_price, full_html=False)
+
+    else:
+        # Average Order Value with Std Dev
+        avg = df.groupby(group_by)["Order Value"].agg(["mean", "std"]).reset_index()
+        fig_avg = get_plot_func("average_order_value")(
+            avg,
+            x=group_by,
+            y="mean",
+            hover_data={"std": True},
+            title=f"Average Order Value ± Std Dev grouped_by_{group_by} for {label}"
+        )
+        charts[f"average_order_value_{group_key}_{label_key}"] = pio.to_html(fig_avg, full_html=False)
+
+        # Total Order Value
+        total = df.groupby(group_by, as_index=False)["Order Value"].sum()
+        fig_total = get_plot_func("total_order_value")(
+            total,
+            x=group_by,
+            y="Order Value",
+            title=f"Total Order Value grouped_by_{group_by} for {label}"
+        )
+        charts[f"total_order_value_{group_key}_{label_key}"] = pio.to_html(fig_total, full_html=False)
+
+    return charts
+
+
+def run_analysis(df, group_index=0, specific_products=None, plot_config=None):
+    group_by = group_options[group_index]
+    all_charts = generate_charts(df, group_by, "All Products", plot_config)
+
+    if specific_products is None:
+        specific_products = df["Product"].dropna().unique().tolist()
+
+    for product in specific_products:
+        filtered_df = df[df["Product"] == product]
+        if not filtered_df.empty:
+            all_charts.update(generate_charts(filtered_df, group_by, product, plot_config))
+
+    return all_charts
+
+
+def filter_charts_by_product_label(html_charts, keyword):
+    keyword = keyword.strip().lower()
+    return {
+        key: value for key, value in html_charts.items()
+        if "_for_" in key and keyword in key.split("_for_")[-1].lower()
+    }
+
+
+def paginate_dataframe(df, page, rows_per_page=ROWS_PER_PAGE):
+    start = (page - 1) * rows_per_page
+    end = start + rows_per_page
+    total_pages = (len(df) + rows_per_page - 1) // rows_per_page
+    return df.iloc[start:end], total_pages
+
+@app.route("/", methods=["GET", "POST"])
+def index():
+    global cooked_df
+    cooked_df = preprocess_data(df)
+
+    selected_metric = request.form.get("metric_name", "quantity_ordered")
+    selected_group = request.form.get("grouping_dimension", "Hour")
+    product_label = request.form.get("product_label", "").strip()
+    page = int(request.args.get("page", 1))
+
+    group_index = group_options.index(selected_group)
+    all_charts = run_analysis(cooked_df, group_index, plot_config=plot_config)
+
+    filtered_charts = filter_charts_by_product_label(
+        all_charts, product_label or "all_products"
+    )
+
+    overview_group_index = group_options.index(selected_group)
+    overview_charts = run_analysis(cooked_df, group_index=overview_group_index, specific_products=["All Products"], plot_config=plot_config)
+    overview_filtered = filter_charts_by_product_label(overview_charts, product_label or "all_products")
+
+    paginated_df, total_pages = paginate_dataframe(cooked_df, page)
+    table_html = paginated_df.to_html(classes="data-table", index=False)
+
+    return render_template("index.html",
+        chart_htmls=filtered_charts,
+        overview_htmls=overview_filtered,
+        summary_table=table_html,
+        metric_options=metric_options,
+        group_options=group_options,
+        selected_metric=selected_metric,
+        selected_group=selected_group,
+        current_year=datetime.now().year,
+        current_page=page,
+        total_pages=total_pages
+    )
+
+if __name__ == "__main__":
+    app.run(debug=True)

@@ -2,13 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=\, initial-scale=1.0">
-    <title>Electronics Store Sales</title>
-    <link rel="stylesheet" href="/css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Electronics Store Sales{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
 </head>
 <body>
-    {% block content %}
-    {% endblock %}
+    <header class="header">
+        <h2>📊 Electronics Dashboard</h2>
+        <nav>
+            <a href="#chart-section">Charts</a>
+            <a href="#overview-section">Overview</a>
+            <a href="#summary-table">Data Table</a>
+        </nav>
+    </header>
 
+    <main>
+        {% block content %}
+        {% endblock %}
+    </main>
+
+    <footer>
+        <p>&copy; {{ current_year }} Batch Dashboard by Rvc</p>
+    </footer>
+
+    <script src="http://localhost:35729/livereload.js" async defer></script>
 </body>
 </html>

@@ -9,3 +9,8 @@
 ### Credits
 - https://www.kaggle.com/datasets/juanmerinobermejo/laptops-price-dataset
 - https://www.kaggle.com/datasets/sinjoysaha/sales-analysis-dataset
+
+
+
+### Development
+- data rate limit: jupyter lab --ServerApp.iopub_data_rate_limit=10000000

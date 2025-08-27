@@ -1,7 +1,70 @@
 {% extends "base.html" %}
 
+{% block title %}Electronics Store Sales{% endblock %}
 
 {% block content %}
-<h1>Electronics Store Sales </h1>
-<p>This is a data visualization project.</p>
+<section class="intro">
+    <h1>📊 Electronics Store Sales Dashboard</h1>
+    <form method="POST" action="#chart-section" onsubmit="showLoading()">
+        <label for="metric_name">Metric:</label>
+        <select name="metric_name">
+            {% for metric in metric_options %}
+            <option value="{{ metric }}" {% if metric == selected_metric %}selected{% endif %}>{{ metric }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="grouping_dimension">Group By:</label>
+        <select name="grouping_dimension">
+            {% for group in group_options %}
+            <option value="{{ group }}" {% if group == selected_group %}selected{% endif %}>{{ group }}</option>
+            {% endfor %}
+        </select>
+
+        <label for="product_label">Product Label:</label>
+        <input type="text" name="product_label" placeholder="e.g. charger">
+
+        <button type="submit">Search</button>
+    </form>
+</section>
+
+<div id="loading" style="display:none;">
+    <p>Loading charts and data...</p>
+    <!-- Drop your GIF here -->
+</div>
+
+<section id="chart-section" class="chart-preview">
+    <h2>Filtered Charts</h2>
+    {% for key, chart in chart_htmls.items() %}
+        <div class="chart-block">
+            {{ chart|safe }}
+        </div>
+    {% endfor %}
+</section>
+<section id="overview-section">
+    <h2>📦 Overview Charts (All Products)</h2>
+    {% for key, chart in overview_htmls.items() %}
+        <div class="chart-block">
+            {{ chart|safe }}
+        </div>
+    {% endfor %}
+</section>
+
+<section id="summary-table">
+    <h2>📋 Raw Data Preview</h2>
+    <div class="table-container">
+        {{ summary_table|safe }}
+    </div>
+
+    <div class="pagination-scroll">
+        <div class="pagination">
+            {% for page_num in range(1, total_pages + 1) %}
+                {% if page_num == current_page %}
+                    <span class="page active">{{ page_num }}</span>
+                {% else %}
+                    <a class="page" href="/?page={{ page_num }}">{{ page_num }}</a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+</section>
 {% endblock %}
