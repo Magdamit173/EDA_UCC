@@ -1,6 +1,5 @@
 from flask import Flask, render_template, request
 import pandas as pd
-import numpy as np
 import plotly.express as px
 import plotly.io as pio
 import os
@@ -8,11 +7,11 @@ from datetime import datetime
 
 app = Flask(__name__, template_folder="templates", static_folder="static", static_url_path="/")
 
+# Load and merge all CSVs
 csv_path = "csv/"
 csv_files = [f for f in os.listdir(csv_path) if f.endswith(".csv")]
 df_list = [pd.read_csv(os.path.join(csv_path, f)) for f in csv_files]
 df = pd.concat(df_list, ignore_index=True)
-
 cooked_df = None
 
 plot_config = {
@@ -24,7 +23,6 @@ plot_config = {
 }
 
 group_options = ["Product", "Date", "Time", "Month", "Week", "Day", "Hour", "City"]
-metric_options = list(plot_config.keys())
 ROWS_PER_PAGE = 25
 
 def preprocess_data(df):
@@ -41,7 +39,6 @@ def preprocess_data(df):
     df["Hour"] = df["Order Date"].dt.hour
     df["City"] = df["Purchase Address"].str.split(",", expand=True)[1]
     return df
-
 
 def generate_charts(df, group_by, label, plot_config=None):
     charts = {}
@@ -62,7 +59,7 @@ def generate_charts(df, group_by, label, plot_config=None):
         quantity,
         x=group_by,
         y="Quantity Ordered",
-        title=f"Quantity Ordered grouped_by_{group_by} for {label}"
+        title=f"{label} • Quantity Ordered • Grouped by {group_by}"
     )
     charts[f"quantity_ordered_{group_key}_{label_key}"] = pio.to_html(fig_quantity, full_html=False)
 
@@ -72,21 +69,20 @@ def generate_charts(df, group_by, label, plot_config=None):
         sales,
         x=group_by,
         y="Sales",
-        title=f"Total Sales grouped_by_{group_by} for {label}"
+        title=f"{label} • Total Sales • Grouped by {group_by}"
     )
     charts[f"total_sales_{group_key}_{label_key}"] = pio.to_html(fig_sales, full_html=False)
 
-        # Average Price (only if grouped by Product)
+    # Average Price (only if grouped by Product)
     if group_by == "Product":
         price = df.groupby(group_by, as_index=False)["Price Each"].mean()
         fig_price = get_plot_func("average_price")(
             price,
             x=group_by,
             y="Price Each",
-            title=f"Average Price grouped_by_{group_by} for {label}"
+            title=f"{label} • Average Price • Grouped by {group_by}"
         )
         charts[f"average_price_{group_key}_{label_key}"] = pio.to_html(fig_price, full_html=False)
-
     else:
         # Average Order Value with Std Dev
         avg = df.groupby(group_by)["Order Value"].agg(["mean", "std"]).reset_index()
@@ -95,7 +91,7 @@ def generate_charts(df, group_by, label, plot_config=None):
             x=group_by,
             y="mean",
             hover_data={"std": True},
-            title=f"Average Order Value ± Std Dev grouped_by_{group_by} for {label}"
+            title=f"{label} • Average Order Value ± Std Dev • Grouped by {group_by}"
         )
         charts[f"average_order_value_{group_key}_{label_key}"] = pio.to_html(fig_avg, full_html=False)
 
@@ -105,35 +101,11 @@ def generate_charts(df, group_by, label, plot_config=None):
             total,
             x=group_by,
             y="Order Value",
-            title=f"Total Order Value grouped_by_{group_by} for {label}"
+            title=f"{label} • Total Order Value • Grouped by {group_by}"
         )
         charts[f"total_order_value_{group_key}_{label_key}"] = pio.to_html(fig_total, full_html=False)
 
     return charts
-
-
-def run_analysis(df, group_index=0, specific_products=None, plot_config=None):
-    group_by = group_options[group_index]
-    all_charts = generate_charts(df, group_by, "All Products", plot_config)
-
-    if specific_products is None:
-        specific_products = df["Product"].dropna().unique().tolist()
-
-    for product in specific_products:
-        filtered_df = df[df["Product"] == product]
-        if not filtered_df.empty:
-            all_charts.update(generate_charts(filtered_df, group_by, product, plot_config))
-
-    return all_charts
-
-
-def filter_charts_by_product_label(html_charts, keyword):
-    keyword = keyword.strip().lower()
-    return {
-        key: value for key, value in html_charts.items()
-        if "_for_" in key and keyword in key.split("_for_")[-1].lower()
-    }
-
 
 def paginate_dataframe(df, page, rows_per_page=ROWS_PER_PAGE):
     start = (page - 1) * rows_per_page
@@ -146,32 +118,29 @@ def index():
     global cooked_df
     cooked_df = preprocess_data(df)
 
-    selected_metric = request.form.get("metric_name", "quantity_ordered")
     selected_group = request.form.get("grouping_dimension", "Hour")
     product_label = request.form.get("product_label", "").strip()
     page = int(request.args.get("page", 1))
 
-    group_index = group_options.index(selected_group)
-    all_charts = run_analysis(cooked_df, group_index, plot_config=plot_config)
+    # Overview Charts: always All Products
+    overview_charts = generate_charts(cooked_df, selected_group, "All Products", plot_config)
 
-    filtered_charts = filter_charts_by_product_label(
-        all_charts, product_label or "all_products"
-    )
+    # Filtered Charts: only if product label is provided
+    filtered_charts = {}
+    if product_label:
+        filtered_df = cooked_df[cooked_df["Product"].str.contains(product_label, case=False, na=False)]
+        if not filtered_df.empty:
+            filtered_charts = generate_charts(filtered_df, selected_group, product_label, plot_config)
 
-    overview_group_index = group_options.index(selected_group)
-    overview_charts = run_analysis(cooked_df, group_index=overview_group_index, specific_products=["All Products"], plot_config=plot_config)
-    overview_filtered = filter_charts_by_product_label(overview_charts, product_label or "all_products")
-
+    # Paginated Table
     paginated_df, total_pages = paginate_dataframe(cooked_df, page)
     table_html = paginated_df.to_html(classes="data-table", index=False)
 
     return render_template("index.html",
         chart_htmls=filtered_charts,
-        overview_htmls=overview_filtered,
+        overview_htmls=overview_charts,
         summary_table=table_html,
-        metric_options=metric_options,
         group_options=group_options,
-        selected_metric=selected_metric,
         selected_group=selected_group,
         current_year=datetime.now().year,
         current_page=page,

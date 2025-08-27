@@ -6,13 +6,6 @@
 <section class="intro">
     <h1>📊 Electronics Store Sales Dashboard</h1>
     <form method="POST" action="#chart-section" onsubmit="showLoading()">
-        <label for="metric_name">Metric:</label>
-        <select name="metric_name">
-            {% for metric in metric_options %}
-            <option value="{{ metric }}" {% if metric == selected_metric %}selected{% endif %}>{{ metric }}</option>
-            {% endfor %}
-        </select>
-
         <label for="grouping_dimension">Group By:</label>
         <select name="grouping_dimension">
             {% for group in group_options %}
@@ -29,7 +22,6 @@
 
 <div id="loading" style="display:none;">
     <p>Loading charts and data...</p>
-    <!-- Drop your GIF here -->
 </div>
 
 <section id="chart-section" class="chart-preview">
