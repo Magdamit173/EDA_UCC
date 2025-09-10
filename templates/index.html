@@ -3,50 +3,12 @@
 {% block title %}Electronics Store Sales{% endblock %}
 
 {% block content %}
-<section class="intro">
-    <h1>📊 Electronics Store Sales Dashboard</h1>
-    <form method="POST" action="#chart-section" onsubmit="showLoading()">
-        <label for="grouping_dimension">Group By:</label>
-        <select name="grouping_dimension">
-            {% for group in group_options %}
-            <option value="{{ group }}" {% if group == selected_group %}selected{% endif %}>{{ group }}</option>
-            {% endfor %}
-        </select>
-
-        <label for="product_label">Product Label:</label>
-        <input type="text" name="product_label" placeholder="e.g. charger">
-
-        <button type="submit">Search</button>
-    </form>
-</section>
-
-<div id="loading" style="display:none;">
-    <p>Loading charts and data...</p>
-</div>
-
-<section id="chart-section" class="chart-preview">
-    <h2>Filtered Charts</h2>
-    {% for key, chart in chart_htmls.items() %}
-        <div class="chart-block">
-            {{ chart|safe }}
-        </div>
-    {% endfor %}
-</section>
-<section id="overview-section">
-    <h2>📦 Overview Charts (All Products)</h2>
-    {% for key, chart in overview_htmls.items() %}
-        <div class="chart-block">
-            {{ chart|safe }}
-        </div>
-    {% endfor %}
-</section>
-
-<section id="summary-table">
-    <h2>📋 Raw Data Preview</h2>
+<section class="table-section">
+    <h3>📋 Data Preview</h3>
+    <input type="text" id="tableSearch" placeholder="🔍 Search product..." onkeyup="filterTable()" />
     <div class="table-container">
         {{ summary_table|safe }}
     </div>
-
     <div class="pagination-scroll">
         <div class="pagination">
             {% for page_num in range(1, total_pages + 1) %}

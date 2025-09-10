@@ -3,29 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Electronics Store Sales{% endblock %}</title>
+    <title>{% block title %}📊 Electronics Dashboard{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
 </head>
 <body>
     <header class="header">
         <h2>📊 Electronics Dashboard</h2>
-        <nav>
-            <a href="#chart-section">Charts</a>
-            <a href="#overview-section">Overview</a>
-            <a href="#summary-table">Data Table</a>
-        </nav>
+        <form method="POST" action="/" class="control-bar" onsubmit="showLoading()">
+            <label for="grouping_dimension">Group By:</label>
+            <select name="grouping_dimension">
+                {% for group in group_options %}
+                    <option value="{{ group }}" {% if group == selected_group %}selected{% endif %}>{{ group }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="product_label">Product Filter:</label>
+            <input type="text" name="product_label" placeholder="e.g. charger" value="{{ product_label }}">
+
+            <button type="submit">🔍 Update</button>
+        </form>
     </header>
 
     <main>
-        {% block content %}
-        {% endblock %}
+        <section class="dashboard-grid">
+            {% for metric, data in chart_data.items() %}
+                <div class="chart-card">
+                    <div class="chart-header">
+                        <h3>{{ data_scope }} • {{ metric.replace('_', ' ').title() }}</h3>
+                        <select onchange="updateChartType(this, '{{ metric }}')">
+                            {% for chart_type in chart_types %}
+                                <option value="{{ chart_type }}" {% if chart_type == plot_config[metric] %}selected{% endif %}>{{ chart_type.title() }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <canvas id="{{ metric }}-chart"></canvas>
+                </div>
+            {% endfor %}
+        </section>
+
+        {% block content %}{% endblock %}
     </main>
 
     <footer>
         <p>&copy; {{ current_year }} Batch Dashboard by Rvc</p>
     </footer>
 
-    <script src="http://localhost:35729/livereload.js" async defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    const chartData = {{ chart_data | tojson }};
+    const chartTypes = {{ plot_config | tojson }};
+    const chartInstances = {};
+
+    function generateColors(count) {
+        const colors = [];
+        for (let i = 0; i < count; i++) {
+            const hue = (i * 360 / count) % 360;
+            colors.push(`hsl(${hue}, 70%, 60%)`);
+        }
+        return colors;
+    }
+
+    function renderCharts() {
+        for (const metric in chartData) {
+            const ctx = document.getElementById(`${metric}-chart`).getContext("2d");
+            const type = chartTypes[metric];
+            const labels = chartData[metric].x;
+            const values = chartData[metric].y;
+
+            const colorful = ["pie", "doughnut", "polarArea"];
+            const backgroundColors = colorful.includes(type) ? generateColors(values.length) : "rgba(100, 149, 237, 0.6)";
+            const borderColors = colorful.includes(type) ? backgroundColors : "rgba(100, 149, 237, 1)";
+
+            const data = {
+                labels: labels,
+                datasets: [{
+                    label: metric.replace("_", " ").toUpperCase(),
+                    data: values,
+                    backgroundColor: backgroundColors,
+                    borderColor: borderColors,
+                    fill: type === "area"
+                }]
+            };
+
+            const config = {
+                type: type === "area" ? "line" : type,
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false
+                }
+            };
+
+            chartInstances[metric] = new Chart(ctx, config);
+        }
+    }
+
+    function updateChartType(selectEl, metric) {
+        const newType = selectEl.value;
+        chartTypes[metric] = newType;
+        chartInstances[metric].destroy();
+        renderCharts();
+    }
+
+    function filterTable() {
+        const input = document.getElementById("tableSearch");
+        const filter = input.value.toLowerCase();
+        const table = document.querySelector(".data-table");
+        const rows = table.getElementsByTagName("tr");
+
+        for (let i = 1; i < rows.length; i++) {
+            const rowText = rows[i].textContent.toLowerCase();
+            rows[i].style.display = rowText.includes(filter) ? "" : "none";
+        }
+    }
+
+    window.onload = renderCharts;
+</script>
+
 </body>
 </html>
