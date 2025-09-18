@@ -1,4 +1,7 @@
-📊 Data Visualization Dashboard
+# 📊 Data Visualization Dashboard
+
+
+<img src="/static/background/header.png" alt="Dashboard Header" width="100%" />
 
 A modular dashboard built for Week 7 Data Analysis Project, visualizing sales trends and product metrics using datasets from Kaggle. Currently in development—expect chart upgrades, tooltip logic, and seasonal annotations soon.
 
