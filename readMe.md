@@ -35,3 +35,24 @@ A modular dashboard built for Week 7 Data Analysis Project, visualizing sales tr
 To avoid data rate limit errors in Jupyter Lab:
 
 jupyter lab --ServerApp.iopub_data_rate_limit=10000000
+
+---
+
+🛠️ How to Run
+
+1. Make sure Python is installed (recommended: Python 3.9+)
+2. Clone or download this repository
+3. Open terminal and navigate to the project folder
+4. Install dependencies:
+
+   pip install -r requirements.txt
+
+5. Launch the Flask app:
+
+   python main.py
+
+6. Open your browser and go to:
+
+   http://localhost:5000
+
+7. Drop CSV files into the `/csv` folder to auto-load them into the dashboard
