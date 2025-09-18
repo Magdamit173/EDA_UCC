@@ -6,11 +6,13 @@ import math
 
 app = Flask(__name__, template_folder="templates", static_folder="static", static_url_path="/")
 
+# Load and merge CSVs
 csv_path = "csv/"
 csv_files = [f for f in os.listdir(csv_path) if f.endswith(".csv")]
 df_list = [pd.read_csv(os.path.join(csv_path, f)) for f in csv_files] if csv_files else []
 df = pd.concat(df_list, ignore_index=True) if df_list else pd.DataFrame()
 
+# Chart config
 plot_config = {
     "quantity_ordered": "bar",
     "total_sales": "bar",
@@ -19,7 +21,7 @@ plot_config = {
 }
 
 group_options = ["Product", "Date", "Time", "Month", "Week", "Day", "Hour", "City"]
-chart_types = ["bar", "line", "scatter", "area", "pie", "doughnut", "radar", "polarArea", "histogram"]
+chart_types = ["bar", "line", "scatter", "area", "pie", "doughnut", "radar", "polarArea"]
 
 def preprocess_data(df):
     if df.empty:

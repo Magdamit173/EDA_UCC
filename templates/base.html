@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}📊 Electronics Dashboard{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
     <script src="{{ url_for('static', filename='js/script.js') }}" defer></script>
 </head>
 <body>
@@ -19,7 +19,7 @@
             </select>
 
             <label for="product_label">Product Filter:</label>
-            <input type="text" name="product_label" placeholder="e.g. charger" value="{{ product_label }}">
+            <input type="text" name="product_label" placeholder="e.g. charger" value="{{ product_label }}" />
 
             <button type="submit">🔍 Update</button>
         </form>
@@ -31,7 +31,7 @@
                 <div class="chart-card">
                     <div class="chart-header">
                         <h3>{{ data_scope }} • {{ metric.replace('_', ' ').title() }}</h3>
-                        <select onchange="updateChartType(this, '{{ metric }}')">
+                        <select class="chart-type-selector" data-metric="{{ metric }}">
                             {% for chart_type in chart_types %}
                                 <option value="{{ chart_type }}" {% if chart_type == plot_config[metric] %}selected{% endif %}>{{ chart_type.title() }}</option>
                             {% endfor %}
@@ -64,18 +64,22 @@
         return colors;
     }
 
-    function renderCharts() {
-        for (const metric in chartData) {
-            const ctx = document.getElementById(`${metric}-chart`).getContext("2d");
-            const type = chartTypes[metric];
-            const labels = chartData[metric].x;
-            const values = chartData[metric].y;
+    function renderChart(metric) {
+        const canvas = document.getElementById(`${metric}-chart`);
+        if (!canvas) return;
 
-            const colorful = ["pie", "doughnut", "polarArea"];
-            const backgroundColors = colorful.includes(type) ? generateColors(values.length) : "rgba(100, 149, 237, 0.6)";
-            const borderColors = colorful.includes(type) ? backgroundColors : "rgba(100, 149, 237, 1)";
+        const ctx = canvas.getContext("2d");
+        const type = chartTypes[metric];
+        const labels = chartData[metric].x;
+        const values = chartData[metric].y;
 
-            const data = {
+        const colorful = ["pie", "doughnut", "polarArea"];
+        const backgroundColors = colorful.includes(type) ? generateColors(values.length) : "rgba(100, 149, 237, 0.6)";
+        const borderColors = colorful.includes(type) ? backgroundColors : "rgba(100, 149, 237, 1)";
+
+        const config = {
+            type: type === "area" ? "line" : type,
+            data: {
                 labels: labels,
                 datasets: [{
                     label: metric.replace("_", " ").toUpperCase(),
@@ -84,42 +88,40 @@
                     borderColor: borderColors,
                     fill: type === "area"
                 }]
-            };
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        };
 
-            const config = {
-                type: type === "area" ? "line" : type,
-                data: data,
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
-            };
-
-            chartInstances[metric] = new Chart(ctx, config);
+        if (chartInstances[metric]) {
+            chartInstances[metric].destroy();
         }
+
+        chartInstances[metric] = new Chart(ctx, config);
     }
 
-    function updateChartType(selectEl, metric) {
-        const newType = selectEl.value;
+    function renderAllCharts() {
+        Object.keys(chartData).forEach(renderChart);
+    }
+
+    function updateChartType(metric, newType) {
         chartTypes[metric] = newType;
-        chartInstances[metric].destroy();
-        renderCharts();
+        renderChart(metric);
     }
 
-    function filterTable() {
-        const input = document.getElementById("tableSearch");
-        const filter = input.value.toLowerCase();
-        const table = document.querySelector(".data-table");
-        const rows = table.getElementsByTagName("tr");
+    document.addEventListener("DOMContentLoaded", () => {
+        renderAllCharts();
 
-        for (let i = 1; i < rows.length; i++) {
-            const rowText = rows[i].textContent.toLowerCase();
-            rows[i].style.display = rowText.includes(filter) ? "" : "none";
-        }
-    }
-
-    window.onload = renderCharts;
-</script>
-
+        document.querySelectorAll(".chart-type-selector").forEach(selector => {
+            selector.addEventListener("change", (e) => {
+                const metric = e.target.dataset.metric;
+                const newType = e.target.value;
+                updateChartType(metric, newType);
+            });
+        });
+    });
+    </script>
 </body>
 </html>
